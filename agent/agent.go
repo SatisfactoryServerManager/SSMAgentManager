@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"log"
 	"strconv"
 
 	"fyne.io/fyne/v2"
@@ -30,8 +29,8 @@ func (a *Agent) GetAgentTabContent() *fyne.Container {
 		Bold: true,
 	}
 
-	title.TextSize = 20
-	title.Position().AddXY(0, 20)
+	title.TextSize = 16
+	title.Move(fyne.NewPos(0, 20))
 
 	AgentNameBox := widget.NewEntry()
 	AgentNameBox.Text = a.Name
@@ -47,7 +46,7 @@ func (a *Agent) GetAgentTabContent() *fyne.Container {
 		},
 		SubmitText: "Update",
 		OnSubmit: func() { // optional, handle form submission
-			log.Println("Form submitted:", AgentNameBox.Text)
+			a.PortOffset, _ = strconv.Atoi(AgentPortBox.Text)
 		},
 	}
 

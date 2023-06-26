@@ -15,7 +15,17 @@ type numericalEntry struct {
 func NewNumericalEntry() *numericalEntry {
 	entry := &numericalEntry{}
 	entry.ExtendBaseWidget(entry)
+	entry.SetValue(0)
 	return entry
+}
+
+func (e *numericalEntry) SetValue(value int) {
+	e.Entry.Text = strconv.Itoa(value)
+}
+
+func (e *numericalEntry) ParseTextValue(value string) {
+	val, _ := strconv.Atoi(value)
+	e.SetValue(val)
 }
 
 func (e *numericalEntry) TypedRune(r rune) {
@@ -27,13 +37,17 @@ func (e *numericalEntry) TypedRune(r rune) {
 func (e *numericalEntry) FocusGained() {
 	e.Entry.FocusGained()
 	if e.Entry.Text == "" {
-		e.Entry.Text = "0"
+		e.SetValue(0)
+	} else {
+		e.ParseTextValue(e.Entry.Text)
 	}
 }
 
 func (e *numericalEntry) FocusLost() {
 	if e.Entry.Text == "" {
-		e.Entry.Text = "0"
+		e.SetValue(0)
+	} else {
+		e.ParseTextValue(e.Entry.Text)
 	}
 	e.Entry.FocusLost()
 }
