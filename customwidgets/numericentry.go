@@ -23,6 +23,10 @@ func (e *numericalEntry) SetValue(value int) {
 	e.Entry.Text = strconv.Itoa(value)
 }
 
+func (e *numericalEntry) GetValue() (int, error) {
+	return strconv.Atoi(e.Text)
+}
+
 func (e *numericalEntry) ParseTextValue(value string) {
 	val, _ := strconv.Atoi(value)
 	e.SetValue(val)

@@ -21,7 +21,5 @@ var printCmd = &cobra.Command{
 		fmt.Println("Config File:", filepath.Join(gui.MainApp.Storage().RootURI().Path(), "preferences.json"))
 		fmt.Println("SSM Cloud URL: ", prefs.String("ssmurl"))
 		fmt.Println("SSM Cloud API Key: ", prefs.String("ssmapikey"))
-		fmt.Println("SSM Cloud Account Email: ", prefs.String("ssmuser"))
-		fmt.Println("SSM Cloud Account Password: ", prefs.String("ssmpass"))
 	},
 }

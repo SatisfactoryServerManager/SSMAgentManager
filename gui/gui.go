@@ -2,7 +2,6 @@ package gui
 
 import (
 	"errors"
-	"fmt"
 	"image/color"
 	"log"
 
@@ -79,6 +78,7 @@ func (m myTheme) Size(name fyne.ThemeSizeName) float32 {
 
 var MainWindow fyne.Window
 var MainApp fyne.App
+var MainTabs *container.AppTabs
 
 func emptyValidator(s string) (err error) {
 	if s == "" {
@@ -92,23 +92,36 @@ func Init() {
 	MainApp = app.NewWithID("com.ssm.ssmagentmanager")
 }
 
+func SetupTabs() {
+	MainTabs = container.NewAppTabs(
+		container.NewTabItem("Home", BuildHomeTabContent()),
+	)
+
+	RefreshTabs()
+}
+
+func RefreshTabs() {
+	var tabItems = []*container.TabItem{
+		container.NewTabItem("Home", BuildHomeTabContent()),
+	}
+
+	for _, agent := range agent.AllAgents.Agents {
+		tabItems = append(tabItems, agent.GetAgentTabItem())
+	}
+
+	MainTabs.SetItems(tabItems)
+
+	MainTabs.Refresh()
+}
+
 func SetupGUI() {
 
 	MainApp.Settings().SetTheme(&myTheme{})
 	MainWindow = MainApp.NewWindow("SSM Agent Manager")
 
-	tabs := container.NewAppTabs(
-		container.NewTabItem("Home", BuildHomeTabContent()),
-	)
+	SetupTabs()
 
-	tabs.SetTabLocation(container.TabLocationTop)
-
-	var agents = []agent.Agent{{Name: "Test"}, {Name: "DockerTest"}}
-	for _, agent := range agents {
-		tabs.Append(agent.GetAgentTabItem())
-	}
-
-	content := container.New(layout.NewVBoxLayout(), BuildTopBar(), tabs)
+	content := container.New(layout.NewVBoxLayout(), BuildTopBar(), MainTabs)
 
 	MainWindow.SetContent(content)
 	MainWindow.Resize(fyne.NewSize(800, 600))
@@ -124,10 +137,13 @@ func OpenCreateAgentDialog() {
 	AgentPortBox.Text = "0"
 	AgentPortBox.SetPlaceHolder("Port Offset from 15777")
 
+	var agentDataDir = ""
 	AgentFileLocationBtn := widget.NewButtonWithIcon("Select Data Directory", theme.FolderIcon(), func() {
 		log.Println("Open Data Dir dialog")
 		dialog.NewFolderOpen(func(location fyne.ListableURI, err error) {
-			fmt.Println(location)
+			if location != nil {
+				agentDataDir = location.Path()
+			}
 		}, MainWindow).Show()
 	})
 
@@ -156,12 +172,36 @@ func OpenCreateAgentDialog() {
 		{Text: "Agent Port Offset:", Widget: AgentPortBox},
 		{Text: "Agent Type:", Widget: AgentTypeSelect},
 		{Text: "Agent Data Directory:", Widget: AgentFileLocationBtn},
-		{Text: "Agent Memory:", Widget: AgentMemoryBox},
+		{Text: "Agent Memory (GB):", Widget: AgentMemoryBox},
 	}
 
 	log.Println("Create Agent Button Pressed")
 
-	newDialog = dialog.NewForm("Create Agent", "Create", "Cancel", formItems, func(t bool) {}, MainWindow)
+	newDialog = dialog.NewForm("Create Agent", "Create", "Cancel", formItems, func(t bool) {
+		if t {
+			portOffset, _ := AgentPortBox.GetValue()
+			memory, _ := AgentMemoryBox.GetValue()
+
+			_, err := agent.CreateNewAgent(
+				AgentNameBox.Text,
+				AgentTypeSelect.Selected,
+				portOffset,
+				memory,
+				agentDataDir,
+				MainApp.Preferences(),
+			)
+
+			if err != nil {
+				errorDiag := dialog.NewError(err, MainWindow)
+				errorDiag.Show()
+				log.Printf("Error creating agent, with error %s\r\n", err.Error())
+				return
+			}
+
+			RefreshTabs()
+		}
+	}, MainWindow)
+
 	newDialog.Resize(fyne.NewSize(500, 400))
 	newDialog.Show()
 }
@@ -187,10 +227,12 @@ func BuildTopBar() *fyne.Container {
 }
 
 func BuildHomeTabContent() *fyne.Container {
+
+	var testBtn *widget.Button
+
 	SSMURLBox := widget.NewEntry()
 	SSMURLBox.PlaceHolder = "https://ssmcloud.hostxtra.co.uk"
 	SSMURLBox.Validator = emptyValidator
-
 	SSMURLBox.Text = MainApp.Preferences().StringWithFallback("ssmurl", "https://ssmcloud.hostxtra.co.uk")
 
 	SSMAPIKeyBox := widget.NewEntry()
@@ -198,30 +240,52 @@ func BuildHomeTabContent() *fyne.Container {
 	SSMAPIKeyBox.Validator = emptyValidator
 	SSMAPIKeyBox.Text = MainApp.Preferences().String("ssmapikey")
 
-	SSMUserBox := widget.NewEntry()
-	SSMUserBox.Text = MainApp.Preferences().String("ssmuser")
-	SSMPassBox := widget.NewPasswordEntry()
-	SSMPassBox.Text = MainApp.Preferences().String("ssmpass")
+	connectionDetailsText := widget.NewRichTextWithText("Enter the SSM Cloud connection details\nSSM URL - The SSM Cloud URL\nSSM API Key - The SSM User API Key, used to create new agents")
+	connectionDetailsText.Move(fyne.NewPos(10, 10))
 
 	form := widget.NewForm(
 		widget.NewFormItem("SSM Cloud URL:", SSMURLBox),
 		widget.NewFormItem("SSM Cloud API Key:", SSMAPIKeyBox),
-		widget.NewFormItem("SSM Cloud Email:", SSMUserBox),
-		widget.NewFormItem("SSM Cloud Password:", SSMPassBox),
 	)
+
+	form.SubmitText = "Save"
 	form.OnSubmit = func() {
 		MainApp.Preferences().SetString("ssmurl", SSMURLBox.Text)
 		MainApp.Preferences().SetString("ssmapikey", SSMAPIKeyBox.Text)
-		MainApp.Preferences().SetString("ssmuser", SSMUserBox.Text)
-		MainApp.Preferences().SetString("ssmpass", SSMPassBox.Text)
+		MainApp.Preferences().SetBool("testedconnection", false)
+		testBtn.Enable()
 	}
 
-	form.SubmitText = "Save"
-
-	form.Move(fyne.NewPos(0, 20))
+	form.Move(fyne.NewPos(0, 110))
 	form.Resize(fyne.NewSize(780, form.MinSize().Height))
 
-	formBox := container.New(mylayout.NewFullWidthLayout(), form)
+	seperator := widget.NewSeparator()
+	seperator.Move(fyne.NewPos(0, 80))
+	seperator.Resize(fyne.NewSize(100, 5))
+
+	seperator2 := widget.NewSeparator()
+	seperator2.Move(fyne.NewPos(0, 280))
+	seperator2.Resize(fyne.NewSize(100, 5))
+
+	testText := widget.NewRichTextWithText("Using the button below, test the connection to SSM Cloud")
+	testText.Move(fyne.NewPos(10, 290))
+
+	testBtn = widget.NewButtonWithIcon("Test Connection", theme.MediaReplayIcon(), func() {
+		MainApp.Preferences().SetBool("testedconnection", true)
+		testBtn.Disable()
+	})
+	testBtn.Importance = widget.HighImportance
+	testBtn.Move(fyne.NewPos(20, 330))
+
+	if MainApp.Preferences().Bool("testedconnection") {
+		testBtn.Disable()
+	} else {
+		testBtn.Enable()
+	}
+
+	buttonBox := container.New(mylayout.NewBlankLayout(), testBtn)
+
+	formBox := container.New(mylayout.NewFullWidthLayout(), connectionDetailsText, seperator, form, seperator2, testText, buttonBox)
 
 	return formBox
 }

@@ -26,7 +26,7 @@ func (d *BlankLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 			continue
 		}
 
-		minSize = minSize.Max(child.MinSize())
+		minSize = minSize.Max(child.Size())
 	}
 
 	return minSize
@@ -46,7 +46,7 @@ func (d *FullWidthLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 			continue
 		}
 
-		minSize = minSize.Max(child.MinSize())
+		minSize = minSize.Max(child.Size())
 	}
 
 	return minSize
