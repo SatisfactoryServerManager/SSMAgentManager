@@ -18,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/SatisfactoryServerManager/SSMAgentManager/customwidgets"
 	"github.com/SatisfactoryServerManager/SSMAgentManager/mylayout"
+	"github.com/SatisfactoryServerManager/SSMAgentManager/utils"
 	"github.com/docker/docker/api/types"
 	dockerContainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -49,7 +50,7 @@ func (a *Agent) GetAgentTabItem() *container.TabItem {
 }
 
 func (a *Agent) GetAgentTabContent() *fyne.Container {
-	title := canvas.NewText("SSM Agent - "+a.Name, theme.TextColor())
+	title := canvas.NewText("SSM Agent - "+a.Name, theme.ForegroundColor())
 	title.TextStyle = fyne.TextStyle{
 		Bold: true,
 	}
@@ -150,6 +151,10 @@ func CreateNewAgent(name string,
 
 	if agent.AgentType == "standalone" {
 
+		if dataDirectory == "" {
+			dataDirectory, _ = filepath.Abs("/SSM/data")
+		}
+
 		agent.DataDirectory = filepath.Join(dataDirectory, agent.Name)
 
 		var installBaseDirectory = ""
@@ -161,6 +166,10 @@ func CreateNewAgent(name string,
 		}
 
 		agent.InstallDirectory = filepath.Join(installBaseDirectory, agent.Name)
+
+		utils.CreateFolder(agent.InstallDirectory)
+		utils.CreateFolder(agent.DataDirectory)
+
 	} else if agent.AgentType == "docker" {
 		if memory == 0 {
 			return nil, errors.New("agent memory must be greater than 0")
