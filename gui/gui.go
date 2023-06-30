@@ -4,6 +4,7 @@ import (
 	"errors"
 	"image/color"
 	"log"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -16,6 +17,7 @@ import (
 	"github.com/SatisfactoryServerManager/SSMAgentManager/agent"
 	"github.com/SatisfactoryServerManager/SSMAgentManager/customwidgets"
 	"github.com/SatisfactoryServerManager/SSMAgentManager/mylayout"
+	"github.com/SatisfactoryServerManager/SSMAgentManager/utils"
 )
 
 type myTheme struct{}
@@ -82,7 +84,7 @@ var MainTabs *container.AppTabs
 
 func emptyValidator(s string) (err error) {
 	if s == "" {
-		return errors.New("Empty String!")
+		return errors.New("empty string")
 	}
 
 	return nil
@@ -98,15 +100,37 @@ func SetupTabs() {
 	)
 
 	RefreshTabs()
+
+	ticker := time.NewTicker(5 * time.Second)
+	quit := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				RefreshTabs()
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
 }
 
 func RefreshTabs() {
+	agent.LoadAgents(MainApp.Preferences())
 	var tabItems = []*container.TabItem{
 		container.NewTabItem("Home", BuildHomeTabContent()),
 	}
 
-	for _, agent := range agent.AllAgents.Agents {
-		tabItems = append(tabItems, agent.GetAgentTabItem())
+	for _, a := range agent.AllAgents.Agents {
+		tabItems = append(tabItems, a.GetAgentTabItem(func(agentName string) func() {
+			return func() {
+				err := agent.DeleteAgent(agentName, MainApp.Preferences())
+				if err != nil {
+					dialog.NewError(err, MainWindow).Show()
+				}
+			}
+		}))
 	}
 
 	MainTabs.SetItems(tabItems)
@@ -197,8 +221,6 @@ func OpenCreateAgentDialog() {
 				log.Printf("Error creating agent, with error %s\r\n", err.Error())
 				return
 			}
-
-			RefreshTabs()
 		}
 	}, MainWindow)
 
@@ -271,6 +293,11 @@ func BuildHomeTabContent() *fyne.Container {
 	testText.Move(fyne.NewPos(10, 290))
 
 	testBtn = widget.NewButtonWithIcon("Test Connection", theme.MediaReplayIcon(), func() {
+		err := utils.TestAPIConnection(MainApp.Preferences())
+		if err != nil {
+			dialog.NewError(err, MainWindow).Show()
+			return
+		}
 		MainApp.Preferences().SetBool("testedconnection", true)
 		testBtn.Disable()
 	})
